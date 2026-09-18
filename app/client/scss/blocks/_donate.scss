@@ -1,0 +1,237 @@
+// Donate page: "ways to give" cards. Reuses the diagonal blue motif from
+// .form-payment so it reads as the same family as the membership checkout.
+//
+// Note: app.scss imports this inside `#app.v-application { }`, so every
+// selector here is automatically prefixed with that.
+
+.donate-page {
+  // The title section carries 80px of bottom padding by default; the intro
+  // paragraph below it supplies the breathing room instead.
+  .title-section {
+    padding-bottom: 24px;
+  }
+
+  &__intro {
+    max-width: 560px;
+    margin-bottom: 48px;
+  }
+
+  &__methods {
+    row-gap: 24px;
+  }
+
+  &__footnote {
+    margin-top: 40px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--descriptive);
+
+    .v-icon {
+      margin-right: 4px;
+      vertical-align: -2px;
+      color: var(--orange);
+    }
+  }
+}
+
+.donate-section {
+  padding-bottom: 96px;
+
+  @include media-breakpoint-down(sm) {
+    padding-bottom: 56px;
+  }
+}
+
+.donate-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: white;
+  box-shadow: 0 12px 40px rgba(#005aa9, 0.10);
+
+  // Header band: solid deep blue with a lighter wedge on the right. The
+  // diagonal cut is on the band's bottom edge so the title never straddles
+  // two colours.
+  &__header {
+    position: relative;
+    padding: 28px 36px 40px;
+    background-color: var(--secondary-blue);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), 0 100%);
+
+    &::after {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 44%;
+      height: 100%;
+      content: '';
+      background-color: rgba(#008ffe, 0.4);
+      clip-path: polygon(28% 0, 100% 0, 100% 100%, 0 100%);
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    @include media-breakpoint-down(sm) {
+      padding: 24px 24px 36px;
+    }
+  }
+
+  &__eyebrow {
+    display: block;
+    margin-bottom: 6px;
+    font-family: Montserrat, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: rgba(white, 0.8);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.2;
+    // colour is set at the bottom of this file (specificity)
+  }
+
+  &__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 20px 36px 36px;
+
+    @include media-breakpoint-down(sm) {
+      padding: 16px 24px 28px;
+    }
+  }
+
+  &__lead {
+    font-size: 16px;
+    line-height: 1.75;
+    color: var(--h3-black);
+  }
+
+  // Stripe card ------------------------------------------------------------
+
+  &__qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 12px auto 0;
+    padding: 20px 20px 14px;
+    border-radius: 12px;
+    background-color: var(--oval-blue);
+
+    svg {
+      display: block;
+      box-sizing: content-box;
+      padding: 10px;
+      border-radius: 6px;
+      background-color: white;
+    }
+  }
+
+  &__qr-hint {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--descriptive);
+
+    .v-icon {
+      vertical-align: -2px;
+      color: var(--descriptive);
+    }
+  }
+
+  &__divider {
+    display: flex;
+    align-items: center;
+    margin: 24px 0 16px;
+    font-size: 12px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--descriptive);
+
+    &::before,
+    &::after {
+      flex: 1;
+      height: 1px;
+      content: '';
+      background-color: rgba(#2f3133, 0.12);
+    }
+
+    span {
+      padding: 0 12px;
+    }
+  }
+
+  &__button {
+    margin-top: auto;
+    font-family: Montserrat, sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: none;
+  }
+
+  // Bank card --------------------------------------------------------------
+
+  &__details {
+    margin: 4px 0 0;
+
+    > div {
+      padding: 14px 0;
+      border-top: 1px solid rgba(#2f3133, 0.10);
+
+      &:last-child {
+        border-bottom: 1px solid rgba(#2f3133, 0.10);
+      }
+    }
+
+    dt {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--descriptive);
+    }
+
+    dd {
+      margin: 4px 0 0;
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--dark);
+    }
+  }
+
+  &__account {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    letter-spacing: 0.5px;
+
+    .v-btn {
+      color: var(--primary-blue);
+    }
+  }
+
+  &__note {
+    margin-top: 16px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--descriptive);
+  }
+}
+
+// The site colours headings via `.section h2 { color: var(--h2-black) }`
+// (see blocks/_section.scss). Match that specificity and add one class so the
+// card title stays white without resorting to !important.
+.section .donate-card h2.donate-card__title {
+  color: white;
+}
