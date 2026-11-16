@@ -1,0 +1,70 @@
+# Deploy on every merge to master: dev first, then production after a person
+# approves it. See docs/ci-cd.md for the one-time setup (AWS roles, GitHub
+# environments and variables).
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+# One deploy at a time; a newer merge waits for the running one.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions: {}   # nothing by default; each job asks for what it needs
+
+jobs:
+  dev:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://dev.cita.org.nz
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      id-token: write   # short-lived AWS credentials (OIDC)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-southeast-2
+      - name: Deploy on the dev server
+        env:
+          INSTANCE_ID: ${{ vars.INSTANCE_ID }}
+        run: .github/scripts/ssm-deploy.sh "$INSTANCE_ID" "$GITHUB_SHA" scripts/deploy-dev.sh
+      - name: Check the site answers
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://dev.cita.org.nz/site.webmanifest)
+          echo "site.webmanifest: $code"
+          [ "$code" = 200 ]
+
+  production:
+    needs: dev
+    # Off until the production stack and scripts/deploy-prod.sh exist:
+    # set the repository variable PROD_ENABLED to "true" to turn it on.
+    if: vars.PROD_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: production   # has "Required reviewers": the job waits for an approval
+      url: https://www.cita.org.nz
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      id-token: write   # short-lived AWS credentials (OIDC)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-southeast-2
+      - name: Deploy on the production server
+        env:
+          INSTANCE_ID: ${{ vars.INSTANCE_ID }}
+        run: .github/scripts/ssm-deploy.sh "$INSTANCE_ID" "$GITHUB_SHA" scripts/deploy-prod.sh

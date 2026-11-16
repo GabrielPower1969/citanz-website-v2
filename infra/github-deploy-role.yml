@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Role that GitHub Actions (CITANZ/citanz-website-v2, one GitHub environment)
+  assumes through OIDC to deploy the site. It can only run AWS-RunShellScript
+  on one EC2 instance and read the result. No long-lived keys. Deploy one stack
+  per account: environment "dev" in nonprod, "production" in production.
+
+Parameters:
+  GitHubEnvironment:
+    Type: String
+    AllowedValues: [dev, production]
+    Description: GitHub environment allowed to use this role (must match deploy.yml).
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: The EC2 instance this role may deploy to.
+  GitHubRepo:
+    Type: String
+    Default: CITANZ/citanz-website-v2
+    AllowedPattern: '^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$'
+    Description: owner/repo allowed to use this role.
+  CreateOidcProvider:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Set to false if the account already has the token.actions.githubusercontent.com provider.
+
+Conditions:
+  MakeProvider: !Equals [!Ref CreateOidcProvider, 'true']
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: MakeProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      Tags: [{Key: Project, Value: citanz}]
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub citanz-github-deploy-${GitHubEnvironment}
+      Description: !Sub GitHub Actions deploy for ${GitHubRepo} (${GitHubEnvironment})
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                # only jobs that run in this GitHub environment of this repo
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:environment:${GitHubEnvironment}
+      Policies:
+        - PolicyName: deploy-via-ssm
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: RunShellScriptOnThisInstanceOnly
+                Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+              - Sid: ReadCommandResults
+                Effect: Allow
+                # these actions do not support resource-level permissions
+                Action: [ssm:GetCommandInvocation, ssm:ListCommandInvocations]
+                Resource: '*'
+      Tags:
+        - {Key: Project, Value: citanz}
+        - {Key: Environment, Value: !Ref GitHubEnvironment}
+
+Outputs:
+  RoleArn:
+    Description: Put this in the GitHub environment variable AWS_ROLE_ARN.
+    Value: !GetAtt DeployRole.Arn
