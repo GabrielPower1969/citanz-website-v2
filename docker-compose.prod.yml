@@ -1,0 +1,46 @@
+# Production overlay (runs on the production EC2 from infra/prod.yml). Use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Differences from dev: no site password; Caddy sits behind CloudFront (the
+# server only accepts CloudFront) and gets its certificate through it.
+# .env on the box is written by scripts/deploy-prod.sh from Parameter Store
+# /citanz/prod, never from git.
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "5"}
+
+services:
+  web:
+    ports: !reset []
+    logging: *logging
+    networks:
+      default:
+        # Fixed so the host firewall can let only this container reach the
+        # EC2 metadata service (instance role). See scripts/deploy-prod.sh.
+        ipv4_address: 172.30.0.10
+  database:
+    ports: !reset []
+    logging: *logging
+  mailpit:
+    profiles: ["local-only"]   # not started in production
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on: [web]
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./.local/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  caddy-data:
+  caddy-config:
