@@ -59,10 +59,6 @@ App\Web\API\Member:
     - WechatID
     - LinkedInLink
     - Github
-    - CV
-    - CoverLetter
-    - DeletingCV
-    - DeletingCL
     - Address
 
 ---

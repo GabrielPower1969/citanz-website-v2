@@ -17,6 +17,7 @@ use Cita\eCommerce\Model\SubscriptionOrder;
 use SilverStripe\Core\Environment;
 use Cita\eCommerce\Service\PaymentService;
 use Cita\eCommerce\Model\Subscription;
+use App\Web\Service\MemberDocuments;
 
 class Member extends RestfulController
 {
@@ -224,33 +225,54 @@ class Member extends RestfulController
         $addressData = json_decode($data['Address'], true);
         unset($data['Address']);
 
-        $data['DeletingCV'] = filter_var($data['DeletingCV'], FILTER_VALIDATE_BOOLEAN);
-        $data['DeletingCL'] = filter_var($data['DeletingCL'], FILTER_VALIDATE_BOOLEAN);
-
-        if ($data['DeletingCV'] === true) {
-            $data['CV'] = null;
-        } elseif (!empty($data['CV'])) {
-            $cvSegments = explode('/', $data['CV']);
-            $data['CV'] = $cvSegments[count($cvSegments) - 1];
-        } else {
-            unset($data['CV']);
-        }
-
-        if ($data['DeletingCL'] === true) {
-            $data['CoverLetter'] = null;
-        } elseif (!empty($data['CoverLetter'])) {
-            $clSegments = explode('/', $data['CoverLetter']);
-            $data['CoverLetter'] = $clSegments[count($clSegments) - 1];
-        } else {
-            unset($data['CoverLetter']);
-        }
-
         $this->user->update($data)->write();
         $this->user->updateAddress($addressData);
 
         return [
             'message' => 'Your profile has been updated!',
             'user' => $this->user,
+            'profile' => $this->user->FullProfile,
+        ];
+    }
+
+    /**
+     * Saves the member's CV or cover letter on the site (MemberDocuments).
+     * POST type=cv|cl, file=<upload>
+     */
+    public function uploadDocument(&$request)
+    {
+        $type = $request->postVar('type');
+
+        if (!MemberDocuments::isType($type)) {
+            return $this->httpError(400, 'Unknown document type');
+        }
+
+        $upload = $request->postVar('file');
+
+        if ($error = MemberDocuments::check($upload)) {
+            return $this->httpError(400, $error);
+        }
+
+        MemberDocuments::store($this->user, $type, $upload);
+
+        return [
+            'url' => MemberDocuments::link($this->user, $type),
+            'profile' => $this->user->FullProfile,
+        ];
+    }
+
+    /** POST type=cv|cl */
+    public function deleteDocument(&$request)
+    {
+        $type = $request->postVar('type');
+
+        if (!MemberDocuments::isType($type)) {
+            return $this->httpError(400, 'Unknown document type');
+        }
+
+        MemberDocuments::remove($this->user, $type);
+
+        return [
             'profile' => $this->user->FullProfile,
         ];
     }

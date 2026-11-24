@@ -33,18 +33,12 @@ class SessionAPI extends RestfulController
         return SecurityToken::inst()->getSecurityID();
     }
 
+    /**
+     * Used to hand S3 keys to the browser for CV uploads. CVs now go through
+     * the site (Member::uploadDocument), so no keys are given out.
+     */
     public function getAAK(&$request)
     {
-        $user = $this->authenticate();
-
-        if (!$user || $user instanceof HTTPResponse || !$user->CanViewListing) {
-            return $this->httpError(404, 'Page not found');
-        }
-
-        return [
-            'key' => Environment::getEnv('AWS_ACCESS_KEY_ID_FE'),
-            'secret' => Environment::getEnv('AWS_SECRET_ACCESS_KEY_FE'),
-            'region' => Environment::getEnv('AWS_REGION'),
-        ];
+        return $this->httpError(410, 'Gone');
     }
 }
