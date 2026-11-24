@@ -1,0 +1,20 @@
+# Rendered by scripts/deploy-prod.sh into .local/Caddyfile (not in git).
+{
+	servers {
+		# Only CloudFront can reach this server (security groups in
+		# infra/prod.yml), so the X-Forwarded-For it sends is trusted and the
+		# site sees the visitor's IP.
+		trusted_proxies static 0.0.0.0/0 ::/0
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+# The certificate for each name comes from Let's Encrypt over HTTP-01, which
+# CloudFront passes through on /.well-known/acme-challenge/*.
+__APEX__ {
+	redir https://__DOMAIN__{uri} permanent
+}
+
+__DOMAIN__ {
+	reverse_proxy web:80
+}
