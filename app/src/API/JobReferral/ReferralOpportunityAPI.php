@@ -13,8 +13,7 @@ use App\Web\JobReferral\Model\ReferralOpportunity;
 use App\Web\Model\Company;
 use App\Web\JobReferral\Model\JobApplication;
 use App\Web\Email\JobApplicationNotification;
-use Aws\S3\S3Client;
-use Aws\S3\Exception\S3Exception;
+use App\Web\Service\MemberDocuments;
 
 class ReferralOpportunityAPI extends RestfulController
 {
@@ -134,6 +133,20 @@ class ReferralOpportunityAPI extends RestfulController
             return $this->httpError(400, 'Missing CV or cover letter');
         }
 
+        // Saved CV / cover letter: read them before anything is written, so a
+        // missing file gives a clear message instead of a half-done application.
+        $saved = [];
+
+        foreach (['cv' => $UseExistingCV, 'cl' => $UseExistingCL] as $type => $useSaved) {
+            if ($useSaved) {
+                $saved[$type] = MemberDocuments::content($this->user, $type);
+
+                if (empty($saved[$type])) {
+                    return $this->httpError(400, 'Your saved CV or cover letter could not be found. Please upload it again.');
+                }
+            }
+        }
+
         $job = ReferralOpportunity::get()->byID($jobId);
 
         if (!$job->IsAppliable) {
@@ -166,46 +179,11 @@ class ReferralOpportunityAPI extends RestfulController
             $email->addAttachment($CL['tmp_name'], $CL['name'], $CL['type']);
         }
 
-        $bucketBaseUrl = "https://citanz.s3.ap-southeast-2.amazonaws.com/{$this->user->GUID}/";
-
-        if ($UseExistingCV && !empty($this->user->CV)) {
-            $awsCV = $this->getS3FileData("{$this->user->GUID}/{$this->user->CV}");
-            $email->addAttachmentFromData($awsCV['data'], $awsCV['name']);
-        }
-        
-        if ($UseExistingCL && !empty($this->user->CoverLetter)) {
-            $awsCL = $this->getS3FileData("{$this->user->GUID}/{$this->user->CoverLetter}");
-            $email->addAttachmentFromData($awsCL['data'], $awsCL['name']);
+        foreach ($saved as $doc) {
+            $email->addAttachmentFromData($doc['data'], $doc['name']);
         }
 
         $email->send();
-    }
-
-    private function getS3FileData($key)
-    {
-        $s3 = new S3Client([
-            'region'  => Environment::getEnv('AWS_REGION'),
-            'credentials' => [
-                'key' => Environment::getEnv('AWS_ACCESS_KEY_ID'),
-                'secret' => Environment::getEnv('AWS_SECRET_ACCESS_KEY'),
-            ],
-        ]);
-
-        try {
-            $result = $s3->GetObject([
-                'Bucket' => Environment::getEnv('AWS_BUCKET_NAME'),
-                'Key'    => $key,
-            ]);
-
-            $meta = $result->get('Metadata');
-
-            return [
-                'data' => (string) $result->get('Body'),
-                'name' => $meta['original-filename'],
-            ];
-        } catch (S3Exception $e) {
-            echo "There was an error uploading the file.\n";
-        }
     }
 
     private function updateJobOpportunity(&$request)

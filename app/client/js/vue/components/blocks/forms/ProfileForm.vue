@@ -415,10 +415,6 @@ export default {
         WechatID: this.wechatID,
         LinkedInLink: this.linkedinLink,
         Github: this.github,
-        CV: this.cvUrl,
-        CoverLetter: this.clUrl,
-        DeletingCV: this.deletingCV,
-        DeletingCL: this.deletingCL,
         Address: JSON.stringify({
           Address: this.address,
           Suburb: this.suburb,
@@ -434,7 +430,7 @@ export default {
     this.getFullProfile()
   },
   methods: {
-    ...mapActions(['get', 'post', 'setUser', 'setAccessToken', 'uploadToBucket', 'deleteFromBucket', 'getBucketObjectHeader']),
+    ...mapActions(['get', 'post', 'setUser', 'setAccessToken', 'uploadDocument', 'deleteDocument']),
     // fuck Chrome - thanks, but no fanks
     disableChromeAutofill() {
       if (!this.$refs.addressField) return
@@ -511,7 +507,14 @@ export default {
 
       this.busy = true
 
-      await Promise.all([this.uploadCV(), this.uploadCL()])
+      try {
+        await this.uploadCV()
+        await this.uploadCL()
+      } catch (error) {
+        this.busy = false
+        this.showError(error)
+        return false
+      }
 
       const data = new FormData()
 
@@ -546,114 +549,43 @@ export default {
       })
     },
     uploadCV () {
-      return new Promise((resolve, reject) => {
-        if (this.cv) {
-          this
-            .performCVDeletion()
-            .finally(() => {
-              this
-                .uploadToBucket({ file: this.cv, id: this.user.id })
-                .then(resp => {
-                  this.cvUrl = resp.key
-                  resolve()
-                }).catch(reject)
-            })
-        } else {
-          resolve()
-        }
-      })
+      if (!this.cv) {
+        return Promise.resolve()
+      }
+
+      return this.uploadDocument({ type: 'cv', file: this.cv })
     },
     uploadCL () {
-      return new Promise((resolve, reject) => {
-        if (this.cl) {
-          this
-            .performCLDeletion()
-            .finally(() => {
-              this
-                .uploadToBucket({ file: this.cl, id: this.user.id })
-                .then(resp => {
-                  this.clUrl = resp.key
-                  resolve()
-                }).catch(reject)
-            })
-        } else {
-          resolve()
-        }
-      })
+      if (!this.cl) {
+        return Promise.resolve()
+      }
+
+      return this.uploadDocument({ type: 'cl', file: this.cl })
     },
     deleteCV () {
       if (confirm('Are you sure you want to delete your CV?')) {
-        this
-          .performCVDeletion()
-          .then(() => {
-            this.deletingCV = true
-            this.updateProfile()
+        this.deleteDocument('cv')
+          .then(resp => {
+            this.originalData.cv = this.cvUrl = resp.profile.cv
+            this.editingCV = false
           })
+          .catch(this.showError)
       }
     },
     deleteCL () {
       if (confirm('Are you sure you want to delete your cover letter?')) {
-        this
-          .performCLDeletion()
-          .then(() => {
-            this.deletingCL = true
-            this.updateProfile()
+        this.deleteDocument('cl')
+          .then(resp => {
+            this.originalData.cl = this.clUrl = resp.profile.cl
+            this.editingCL = false
           })
+          .catch(this.showError)
       }
     },
-    performCVDeletion() {
-      return new Promise(resolve => {
-        if (!this.cvUrl?.length) {
-          resolve()
-        } else {
-          const key = this.cvUrl.replace('https://citanz.s3.ap-southeast-2.amazonaws.com/', '')
-          this
-            .getBucketObjectHeader(key)
-            .then(data => {
-              if (this.user.id != null && data.Metadata['owner-uuid'] === this.user.id) {
-                this
-                  .deleteFromBucket(key)
-                  .finally(resolve)
-              } else {
-                alert('YOU DO NOT HAVE PERMISSION TO PERFORM THIS ACTION!')
-                reject()
-              }
-            })
-            .catch( err => {
-              console.log(err)
-            })
-        }
-      })
-    },
-    performCLDeletion() {
-      return new Promise((resolve, reject) => {
-        if (!this.clUrl?.length) {
-          resolve()
-        } else {
-          const key = this.clUrl.replace('https://citanz.s3.ap-southeast-2.amazonaws.com/', '')
-
-          this
-            .getBucketObjectHeader(key)
-            .then(data => {
-              if (this.user.id != null && data.Metadata['owner-uuid'] === this.user.id) {
-                this
-                  .deleteFromBucket(key)
-                  .finally(resolve)
-              } else {
-                alert('YOU DO NOT HAVE PERMISSION TO PERFORM THIS ACTION!')
-                reject()
-              }
-            })
-            .catch( err => {
-              if (err.statusCode === 404) {
-                resolve()
-              } else {
-                alert('Something went wrong! Please contact CITANZ admin in Wechat group!')
-                reject()
-              }
-            })
-        }
-      })
+    showError (error) {
+      this.$store.dispatch('setShowModal', true)
+      this.$store.dispatch('setModalColor', 'red')
+      this.$store.dispatch('setPostbackMessage', error.response && error.response.data && error.response.data.message ? error.response.data.message : 'Something went wrong. Please try again.')
     },
   },
 }

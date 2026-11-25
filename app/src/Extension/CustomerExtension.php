@@ -28,6 +28,7 @@ use App\Web\JobReferral\Model\JobApplication;
 use App\Web\JobReferral\Model\ReferralOpportunity;
 use SilverStripe\Core\Environment;
 use DateTime;
+use App\Web\Service\MemberDocuments;
 
 /**
  * @file SiteConfigExtension
@@ -85,6 +86,12 @@ class CustomerExtension extends DataExtension
         'MyRegion' => 'Region',
         'MyCity' => 'City',
         'WechatID' => 'WeChat',
+    ];
+
+    // CV and cover letter on the site's own protected storage (MemberDocuments).
+    private static $has_one = [
+        'CVFile' => File::class,
+        'CoverLetterFile' => File::class,
     ];
 
     private static $has_many = [
@@ -165,10 +172,6 @@ class CustomerExtension extends DataExtension
 
     public function getFullProfile()
     {
-        $s3BaseUrl = Environment::getEnv('AWS_S3_ASSETS_BASE_URL') ?? '';
-        $cv = $this->owner->CV;
-        $cl = $this->owner->CoverLetter;
-        $guid = $this->owner->GUID;
         return [
             'dob' => $this->owner->Dob,
             'gender' => $this->owner->Gender,
@@ -182,8 +185,8 @@ class CustomerExtension extends DataExtension
             'linkedinLink' => $this->owner->LinkedInLink,
             'github' => $this->owner->Github,
             'canListJob' => (bool) $this->owner->CanCreateReferralOpportunities,
-            'cv' => !empty($cv) ? "{$s3BaseUrl}{$guid}/{$cv}" : null,
-            'cl' => !empty($cl) ? "{$s3BaseUrl}{$guid}/{$cl}" : null,
+            'cv' => MemberDocuments::link($this->owner, 'cv'),
+            'cl' => MemberDocuments::link($this->owner, 'cl'),
         ];
     }
 
